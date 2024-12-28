@@ -55,7 +55,7 @@ M.ask_deepseek = function(start_line, end_line)
 
     -- Build messages to send to DeepSeek
     local messages = {
-      { role = "system", content = "You are a helpful assistant." },
+      { role = "system", content = "You are a helpful code refactoring assistant. Do not include explanations or commentary, only return the refactored code." },
       {
         role = "user",
         content = string.format(
@@ -75,16 +75,17 @@ M.ask_deepseek = function(start_line, end_line)
       body = vim.fn.json_encode({
         model = M.config.model,
         messages = messages,
+        temperature = 0.0,
         stream = false,
       }),
       callback = function(res)
         if res.status == 200 and res.body then
           local data = vim.json.decode(res.body)
           local deepseek_reply = data.choices
-            and data.choices[1]
-            and data.choices[1].message
-            and data.choices[1].message.content
-            or "No valid response."
+              and data.choices[1]
+              and data.choices[1].message
+              and data.choices[1].message.content
+              or "No valid response."
 
           vim.schedule(function()
             M.show_in_floating_window(deepseek_reply)
@@ -134,14 +135,13 @@ M.setup = function(opts)
 
   -- Example: create a user command to call ask_deepseek
   -- You could also map a key in your config.
-vim.api.nvim_create_user_command(
-  "DeepSeekAsk",
-  function(opts)
-    M.ask_deepseek(opts.line1, opts.line2)
-  end,
-  { range = true }
-)
+  vim.api.nvim_create_user_command(
+    "DeepSeekAsk",
+    function(opts)
+      M.ask_deepseek(opts.line1, opts.line2)
+    end,
+    { range = true }
+  )
 end
 
 return M
-
