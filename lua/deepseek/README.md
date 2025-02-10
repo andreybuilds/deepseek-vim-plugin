@@ -7,6 +7,7 @@ A Neovim plugin that integrates with the DeepSeek API to provide code refactorin
 - **Code Snippet Query**: Ask DeepSeek about specific code snippets directly from your buffer.
 - **Workspace Query**: Query DeepSeek about your entire project workspace, including multiple files.
 - **Floating Window**: Responses from DeepSeek are displayed in a floating window for easy viewing.
+- **Refactoring**: Automatically refactor your code based on DeepSeek's suggestions.
 
 ## Installation
 
@@ -34,10 +35,30 @@ A Neovim plugin that integrates with the DeepSeek API to provide code refactorin
 2. Run the command `:DeepSeekAsk` or map it to a keybinding.
 3. Enter your question when prompted.
 
+**Example**:
+```lua
+-- Select the following code and run :DeepSeekAsk
+local function add(a, b)
+  return a + b
+end
+```
+Ask: "How can I make this function more robust?"
+
 ### Workspace Query
 
 1. Run the command `:DeepSeekAskWorkspace` or use the default keybinding `<D-S-d>` (Command+Shift+D on macOS).
 2. Enter your question when prompted.
+
+**Example**:
+Ask: "How can I improve the structure of my project?"
+
+### Refactoring
+
+1. Run the command `:DeepSeekRefactor`.
+2. Enter your refactoring request when prompted.
+
+**Example**:
+Request: "Refactor the code to use async/await instead of callbacks."
 
 ### Keybindings
 

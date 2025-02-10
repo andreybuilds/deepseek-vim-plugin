@@ -177,6 +177,9 @@ end
 -- New Feature: Refactor & Apply Workspace Changes
 -- This function reads the entire workspace, prompts for a refactoring request,
 -- sends the content and request to DeepSeek, and then immediately applies the changes.
+-- The JSON response from DeepSeek should have a "changes" field, an array of objects.
+-- Each object must have "file" and "new_content", and can optionally have an "action"
+-- field. The "action" field can be "modify" (default) or "create".
 --------------------------------------------------------------------------------
 M.ask_deepseek_refactor = function()
   local workspace_content = read_workspace_files()
@@ -185,7 +188,7 @@ M.ask_deepseek_refactor = function()
     return
   end
 
-  vim.ui.input({ prompt = "Enter your refactoring request (e.g., Change the attribute CPF to Long instead of String): " }, function(user_input)
+  vim.ui.input({ prompt = "Enter your refactoring request (e.g., create a new controller with person endpoint persisting to mysql): " }, function(user_input)
     if not user_input or user_input == "" then
       vim.notify("DeepSeek: No refactoring request provided. Aborting.", vim.log.levels.WARN)
       return
@@ -194,7 +197,7 @@ M.ask_deepseek_refactor = function()
     local messages = {
       {
         role = "system",
-        content = "You are a code refactoring assistant. When given a project workspace and a refactoring request, return only a valid JSON object with exactly one key, 'changes'. 'changes' should be an array of objects, each having 'file' (the relative file path) and 'new_content' (the complete new content for that file). Do not include any extra commentary or formatting."
+        content = "You are a code refactoring assistant. When given a project workspace and a refactoring request, return only a valid JSON object with exactly one key, 'changes'. 'changes' should be an array of objects, each having 'file' (the file path relative to the workspace, or absolute if it starts with '/'), 'new_content' (the complete new content for that file) and optionally 'action' (either 'modify' or 'create'; if omitted, defaults to 'modify'). Do not include any extra commentary or formatting."
       },
       {
         role = "user",
@@ -228,7 +231,7 @@ M.ask_deepseek_refactor = function()
           json_str = assistant_content:match("({.+})")
         end
 
-        -- Optionally, you can show the raw extracted JSON in a floating window for troubleshooting.
+        -- -- Optionally, show the raw extracted JSON in a floating window for troubleshooting.
         -- vim.schedule(function()
         --   -- *** REMOVE THE FOLLOWING LINE AFTER TROUBLESHOOTING ***
         --   M.show_in_floating_window("Raw extracted JSON:\n" .. (json_str or assistant_content or res.body))
@@ -267,26 +270,52 @@ end
 M.apply_changes = function(changes)
   -- Use vim.loop.cwd() to get the current working directory.
   local cwd = vim.loop.cwd()
-  -- Wrap the entire loop in vim.schedule to run on the main event loop.
+  -- Wrap the entire file update loop in vim.schedule so that all Vimscript calls run on the main loop.
   vim.schedule(function()
     for _, change in ipairs(changes) do
       local file = change.file
       local new_content = change.new_content
+      local action = change.action or "modify"
       if file and new_content then
-        -- If the file is absolute (starts with "/"), then use it as-is.
         local full_path
         if file:sub(1, 1) == "/" then
           full_path = file
         else
           full_path = cwd .. "/" .. file
         end
-        local ok, err = pcall(function()
-          vim.fn.writefile(vim.split(new_content, "\n"), full_path)
-        end)
-        if ok then
-          vim.notify("Updated file: " .. full_path, vim.log.levels.INFO)
+        if action == "create" then
+          local stat = vim.loop.fs_stat(full_path)
+          if stat then
+            -- File exists; update it.
+            local ok, err = pcall(function()
+              vim.fn.writefile(vim.split(new_content, "\n"), full_path)
+            end)
+            if ok then
+              vim.notify("Updated existing file: " .. full_path, vim.log.levels.INFO)
+            else
+              vim.notify("Failed to update file: " .. full_path .. "\n" .. err, vim.log.levels.ERROR)
+            end
+          else
+            -- File does not exist; create it.
+            local ok, err = pcall(function()
+              vim.fn.writefile(vim.split(new_content, "\n"), full_path)
+            end)
+            if ok then
+              vim.notify("Created file: " .. full_path, vim.log.levels.INFO)
+            else
+              vim.notify("Failed to create file: " .. full_path .. "\n" .. err, vim.log.levels.ERROR)
+            end
+          end
         else
-          vim.notify("Failed to update file: " .. full_path .. "\n" .. err, vim.log.levels.ERROR)
+          -- Default action: modify.
+          local ok, err = pcall(function()
+            vim.fn.writefile(vim.split(new_content, "\n"), full_path)
+          end)
+          if ok then
+            vim.notify("Updated file: " .. full_path, vim.log.levels.INFO)
+          else
+            vim.notify("Failed to update file: " .. full_path .. "\n" .. err, vim.log.levels.ERROR)
+          end
         end
       else
         vim.notify("Invalid change entry: missing 'file' or 'new_content'.", vim.log.levels.ERROR)
